@@ -2,6 +2,7 @@ require("dotenv").config(); // Load environment variables from .env
 const express = require("express"); // Import express
 const admin = require("firebase-admin");
 const twilio = require("twilio");
+const { format, toZonedTime } = require("date-fns-tz"); // Import date-fns-tz functions
 
 // Load the Firebase Service Account Key
 const serviceAccount = JSON.parse(
@@ -57,7 +58,7 @@ const validateDistance = (bin, distance) => {
   // Log the current readings for the bin
   console.log(`Bin: ${bin}, Readings:`, distanceReadings[bin]);
 
-  // Check if there are at least 3 readings
+  // Check if there are at least 2 readings (for testing)
   if (distanceReadings[bin].length >= 2) {
     const readings = distanceReadings[bin].map((reading) => reading.distance);
     const min = Math.min(...readings);
@@ -89,6 +90,28 @@ const sendSms = async (to, message) => {
   }
 };
 
+// Function to post a notification to Firestore
+const postNotification = async (bin, trashLevel) => {
+  try {
+    const now = new Date();
+    const timeZone = "Asia/Manila";
+    const zonedDate = toZonedTime(now, timeZone);
+    const formattedDatetime = format(zonedDate, "yyyy-MM-dd hh:mm:ss aa");
+
+    const notification = {
+      notificationId: `${formattedDatetime}-${trashLevel}`,
+      trashLevel,
+      datetime: formattedDatetime,
+      bin,
+    };
+
+    await db.collection("notifications").add(notification);
+    console.log(`Notification posted for ${bin}:`, notification);
+  } catch (error) {
+    console.error("Error posting notification:", error);
+  }
+};
+
 // Listen for changes in the Realtime Database
 const listenToRealtimeDb = () => {
   const binsRef = realtimeDb.ref("/");
@@ -116,7 +139,7 @@ const listenToRealtimeDb = () => {
             const trashLevel = calculateTrashLevel(validatedDistance);
             console.log(`Bin: ${bin}, Validated Trash Level: ${trashLevel}%`);
 
-            // Send SMS if trash level is critical
+            // Send SMS and post notification if trash level is critical
             if ([90, 95, 100].includes(trashLevel)) {
               db.collection("users").get().then((usersSnapshot) => {
                 usersSnapshot.forEach((userDoc) => {
@@ -129,6 +152,9 @@ const listenToRealtimeDb = () => {
                   }
                 });
               });
+
+              // Post a notification to Firestore
+              postNotification(bin, trashLevel);
             }
           } else {
             console.log(`Bin: ${bin}, Distance reading is not stable.`);
