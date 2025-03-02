@@ -1,5 +1,5 @@
-const { initializeFirebase } = require("../lib/firebase")
-const { fetchAndPostTrashLevel } = require("../lib/trash-utils")
+const { initializeFirebase } = require("./lib/firebase")
+const { fetchAndPostTrashLevel } = require("./lib/trash-utils")
 
 module.exports = async (req, res) => {
   console.log("Trigger started at:", new Date().toISOString())
