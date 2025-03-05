@@ -31,8 +31,8 @@ const distanceReadings = {};
 
 // Function to calculate trash level percentage
 const calculateTrashLevel = (distance) => {
-  const maxDistance = 100; // 100cm = 0% (empty)
-  const minDistance = 2; // 0cm = 100% (full)
+  const maxDistance = 60; // 100cm = 0% (empty)
+  const minDistance = 5; // 0cm = 100% (full)
 
   if (distance >= maxDistance) return 0; // Bin is empty
   if (distance <= minDistance) return 100; // Bin is full
