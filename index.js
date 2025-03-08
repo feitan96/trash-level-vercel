@@ -26,54 +26,6 @@ const realtimeDb = admin.database();
 const app = express(); // Initialize express
 const port = process.env.PORT || 3000;
 
-// Track distance readings for validation
-const distanceReadings = {};
-
-// Function to calculate trash level percentage
-const calculateTrashLevel = (distance) => {
-  const maxDistance = 60; // 100cm = 0% (empty)
-  const minDistance = 5; // 0cm = 100% (full)
-
-  if (distance >= maxDistance) return 0; // Bin is empty
-  if (distance <= minDistance) return 100; // Bin is full
-
-  // Linear interpolation to calculate percentage
-  return Math.round(((maxDistance - distance) / (maxDistance - minDistance)) * 100);
-};
-
-// Function to validate distance readings
-const validateDistance = (bin, distance) => {
-  if (!distanceReadings[bin]) {
-    distanceReadings[bin] = [];
-  }
-
-  // Add the new reading
-  distanceReadings[bin].push({ distance, timestamp: Date.now() });
-
-  // Remove readings older than 3 seconds
-  distanceReadings[bin] = distanceReadings[bin].filter(
-    (reading) => Date.now() - reading.timestamp <= 3000
-  );
-
-  // Log the current readings for the bin
-  console.log(`Bin: ${bin}, Readings:`, distanceReadings[bin]);
-
-  // Check if there are at least 2 readings (for testing)
-  if (distanceReadings[bin].length >= 2) {
-    const readings = distanceReadings[bin].map((reading) => reading.distance);
-    const min = Math.min(...readings);
-    const max = Math.max(...readings);
-
-    // Check if the deviation is within 5cm
-    if (max - min <= 5) {
-      // Return the latest reading
-      return distanceReadings[bin][distanceReadings[bin].length - 1].distance;
-    }
-  }
-
-  return null; // Invalid reading
-};
-
 // Function to send SMS
 const sendSms = async (to, message) => {
   try {
@@ -124,43 +76,30 @@ const listenToRealtimeDb = () => {
 
       Object.keys(binsData).forEach((bin) => {
         const binData = binsData[bin];
-        const distance = binData["distance(cm)"];
+        const trashLevel = binData["trashLevel"]; // Use trashLevel directly from Firebase
 
-        if (distance !== null) {
-          console.log(`Bin: ${bin}, Distance: ${distance}cm`);
+        if (trashLevel !== null && trashLevel !== undefined) {
+          console.log(`Bin: ${bin}, Trash Level: ${trashLevel}%`);
 
-          // Validate the distance reading
-          const validatedDistance = validateDistance(bin, distance);
+          // Send SMS and post notification if trash level is critical
+          if ([90, 95, 100].includes(trashLevel)) {
+            db.collection("users").get().then((usersSnapshot) => {
+              usersSnapshot.forEach((userDoc) => {
+                const userData = userDoc.data();
+                const { contactNumber, firstName } = userData;
 
-          if (validatedDistance !== null) {
-            console.log(`Bin: ${bin}, Validated Distance: ${validatedDistance}cm`);
-
-            // Calculate the trash level
-            const trashLevel = calculateTrashLevel(validatedDistance);
-            console.log(`Bin: ${bin}, Validated Trash Level: ${trashLevel}%`);
-
-            // Send SMS and post notification if trash level is critical
-            if ([90, 95, 100].includes(trashLevel)) {
-              db.collection("users").get().then((usersSnapshot) => {
-                usersSnapshot.forEach((userDoc) => {
-                  const userData = userDoc.data();
-                  const { contactNumber, firstName } = userData;
-
-                  if (contactNumber) {
-                    const message = `🚨 Alert: Hi ${firstName}, Bin ${bin} is ${trashLevel}% full! Please take action.`;
-                    sendSms(contactNumber, message);
-                  }
-                });
+                if (contactNumber) {
+                  const message = `🚨 Alert: Hi ${firstName}, Bin ${bin} is ${trashLevel}% full! Please take action.`;
+                  sendSms(contactNumber, message);
+                }
               });
+            });
 
-              // Post a notification to Firestore
-              postNotification(bin, trashLevel);
-            }
-          } else {
-            console.log(`Bin: ${bin}, Distance reading is not stable.`);
+            // Post a notification to Firestore
+            postNotification(bin, trashLevel);
           }
         } else {
-          console.log(`Bin: ${bin}, No distance data found.`);
+          console.log(`Bin: ${bin}, No trashLevel data found.`);
         }
       });
     } else {
