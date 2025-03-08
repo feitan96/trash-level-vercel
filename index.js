@@ -34,10 +34,10 @@ const sendSms = async (to, message) => {
       from: process.env.TWILIO_PHONE_NUMBER,
       to,
     });
-    console.log(`SMS sent to ${to}: ${result.sid}`);
+    console.log(`SMS sent to ${to}: ${result.sid}`); // Log SMS sending
     return { success: true, sid: result.sid };
   } catch (error) {
-    console.error(`Error sending SMS to ${to}:`, error);
+    console.error(`Error sending SMS to ${to}:`, error); // Log SMS error
     return { success: false, error: error.message };
   }
 };
@@ -58,9 +58,9 @@ const postNotification = async (bin, trashLevel) => {
     };
 
     await db.collection("notifications").add(notification);
-    console.log(`Notification posted for ${bin}:`, notification);
+    console.log(`Notification posted for ${bin}:`, notification); // Log notification posting
   } catch (error) {
-    console.error("Error posting notification:", error);
+    console.error("Error posting notification:", error); // Log notification error
   }
 };
 
@@ -72,14 +72,12 @@ const listenToRealtimeDb = () => {
     const binsData = snapshot.val();
 
     if (binsData) {
-      console.log("Bins data updated:", binsData);
-
       Object.keys(binsData).forEach((bin) => {
         const binData = binsData[bin];
         const trashLevel = binData["trashLevel"]; // Use trashLevel directly from Firebase
 
         if (trashLevel !== null && trashLevel !== undefined) {
-          console.log(`Bin: ${bin}, Trash Level: ${trashLevel}%`);
+          console.log(`Bin: ${bin}, Trash Level: ${trashLevel}%`); // Log trash level
 
           // Send SMS and post notification if trash level is critical
           if ([90, 95, 100].includes(trashLevel)) {
@@ -90,7 +88,7 @@ const listenToRealtimeDb = () => {
 
                 if (contactNumber) {
                   const message = `🚨 Alert: Hi ${firstName}, Bin ${bin} is ${trashLevel}% full! Please take action.`;
-                  sendSms(contactNumber, message);
+                  sendSms(contactNumber, message); // Send SMS
                 }
               });
             });
@@ -98,12 +96,8 @@ const listenToRealtimeDb = () => {
             // Post a notification to Firestore
             postNotification(bin, trashLevel);
           }
-        } else {
-          console.log(`Bin: ${bin}, No trashLevel data found.`);
         }
       });
-    } else {
-      console.log("No bins found in Realtime DB.");
     }
   });
 };
