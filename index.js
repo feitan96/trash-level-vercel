@@ -43,21 +43,23 @@ const sendSms = async (to, message) => {
 };
 
 // Function to post a notification to Firestore
-const postNotification = async (bin, trashLevel) => {
+const postNotification = async (bin, trashLevel, gps) => {
   try {
-    const now = new Date();
-    const timeZone = "Asia/Manila";
-    const zonedDate = toZonedTime(now, timeZone);
-    const formattedDatetime = format(zonedDate, "yyyy-MM-dd hh:mm:ss aa");
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
 
     const notification = {
-      notificationId: `${formattedDatetime}-${trashLevel}`,
       trashLevel,
-      datetime: formattedDatetime,
+      datetime: timestamp,
       bin,
+      isRead: false,
+      gps: {
+        latitude: gps.latitude,
+        longitude: gps.longitude,
+        altitude: gps.altitude
+      }
     };
 
-    await db.collection("notifications").add(notification);
+    await db.collection("newNotifications").add(notification);
     console.log(`Notification posted for ${bin}:`, notification); // Log notification posting
   } catch (error) {
     console.error("Error posting notification:", error); // Log notification error
@@ -75,6 +77,7 @@ const listenToRealtimeDb = () => {
       Object.keys(binsData).forEach((bin) => {
         const binData = binsData[bin];
         const trashLevel = binData["trashLevel"]; // Use trashLevel directly from Firebase
+        const gps = binData["gps"]; // Get GPS data from Firebase
 
         if (trashLevel !== null && trashLevel !== undefined) {
           console.log(`Bin: ${bin}, Trash Level: ${trashLevel}%`); // Log trash level
@@ -87,14 +90,14 @@ const listenToRealtimeDb = () => {
                 const { contactNumber, firstName } = userData;
 
                 if (contactNumber) {
-                  const message = `🚨 Alert: Hi ${firstName}, Bin ${bin} is ${trashLevel}% full! Please take action.`;
+                  const message = `🚨 Alert: Hi ${firstName}, Bin ${bin} is ${trashLevel}% full! Location: ${gps.latitude}, ${gps.longitude}. Please take action.`;
                   sendSms(contactNumber, message); // Send SMS
                 }
               });
             });
 
-            // Post a notification to Firestore
-            postNotification(bin, trashLevel);
+            // Post a notification to Firestore with GPS data
+            postNotification(bin, trashLevel, gps);
           }
         }
       });
