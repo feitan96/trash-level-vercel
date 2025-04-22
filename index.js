@@ -1,7 +1,6 @@
-require("dotenv").config(); // Load environment variables from .env
-const express = require("express"); // Import express
+require("dotenv").config();
+const express = require("express");
 const admin = require("firebase-admin");
-// Update the import
 const { Vonage } = require('@vonage/server-sdk');
 
 // Load the Firebase Service Account Key
@@ -20,7 +19,6 @@ const realtimeDb = admin.database();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Remove Twilio initialization
 // Update Vonage initialization
 const vonage = new Vonage({
   apiKey: process.env.VONAGE_API_KEY,
@@ -30,54 +28,59 @@ const vonage = new Vonage({
 });
 
 // Update the sendSms function
-const sendSms = async (to, message) => {
-  try {
-    const from = "SeaGBin";
-    const response = await vonage.sms.send({
-      to,
-      from,
-      text: message
-    });
+// const sendSms = async (to, message) => {
+//   try {
+//     const from = "SeaGBin";
+//     const response = await vonage.sms.send({
+//       to,
+//       from,
+//       text: message
+//     });
 
-    const responseData = response.messages[0];
+//     const responseData = response.messages[0];
     
-    if (responseData.status === '0') {
-      console.log(`SMS sent to ${to}: ${responseData['message-id']}`);
-      return { success: true, id: responseData['message-id'] };
-    } else {
-      console.error(`Failed to send SMS to ${to}: ${responseData.error-text}`);
-      return { success: false, error: responseData['error-text'] };
-    }
-  } catch (error) {
-    console.error(`Error sending SMS to ${to}:`, error);
-    return { success: false, error: error.message };
-  }
-};
+//     if (responseData.status === '0') {
+//       console.log(`SMS sent to ${to}: ${responseData['message-id']}`);
+//       return { success: true, id: responseData['message-id'] };
+//     } else {
+//       console.error(`Failed to send SMS to ${to}: ${responseData.error-text}`);
+//       return { success: false, error: responseData['error-text'] };
+//     }
+//   } catch (error) {
+//     console.error(`Error sending SMS to ${to}:`, error);
+//     return { success: false, error: error.message };
+//   }
+// };
 
 // Function to post a notification to Firestore
 const postNotification = async (bin, trashLevel, gps, recipients) => {
-  try {
-    const timestamp = admin.firestore.FieldValue.serverTimestamp();
-
-    const notification = {
-      trashLevel,
-      datetime: timestamp,
-      bin,
-      isRead: false,
-      recipients,
-      gps: {
-        latitude: gps.latitude,
-        longitude: gps.longitude,
-        altitude: gps.altitude
-      }
-    };
-
-    await db.collection("newNotifications").add(notification);
-    console.log(`Notification posted for ${bin}:`, notification);
-  } catch (error) {
-    console.error("Error posting notification:", error);
-  }
-};
+    try {
+      const timestamp = admin.firestore.FieldValue.serverTimestamp();
+  
+      // Add isRead status to each recipient
+      const recipientsWithReadStatus = recipients.map(recipient => ({
+        ...recipient,
+        isRead: false
+      }));
+  
+      const notification = {
+        trashLevel,
+        datetime: timestamp,
+        bin,
+        recipients: recipientsWithReadStatus,
+        gps: {
+          latitude: gps.latitude,
+          longitude: gps.longitude,
+          altitude: gps.altitude
+        }
+      };
+  
+      await db.collection("newNotifications").add(notification);
+      console.log(`Notification posted for ${bin}:`, notification);
+    } catch (error) {
+      console.error("Error posting notification:", error);
+    }
+  };
 
 // Function to get notification recipients for a bin
 const getNotificationRecipients = async (bin) => {
@@ -167,12 +170,12 @@ const listenToRealtimeDb = () => {
             const recipients = await getNotificationRecipients(bin);
 
             // Send SMS only to non-admin recipients (assigned users)
-            for (const recipient of recipients) {
-              if (recipient.contactNumber && recipient.role === 'user') {
-                const message = `Alert: Hi ${recipient.firstName}, Bin ${bin} is ${trashLevel}% full! Location: ${gps.latitude}, ${gps.longitude}. Please take action.`;
-                sendSms(recipient.contactNumber, message);
-              }
-            }
+            // for (const recipient of recipients) {
+            //   if (recipient.contactNumber && recipient.role === 'user') {
+            //     const message = `Alert: Hi ${recipient.firstName}, Bin ${bin} is ${trashLevel}% full! Location: ${gps.latitude}, ${gps.longitude}. Please take action.`;
+            //     sendSms(recipient.contactNumber, message);
+            //   }
+            // }
 
             // Post a notification to Firestore with GPS data and all recipients
             postNotification(bin, trashLevel, gps, recipients);
